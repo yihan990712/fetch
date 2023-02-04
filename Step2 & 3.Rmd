@@ -1,0 +1,125 @@
+---
+title: "test"
+output: html_document
+date: "2023-02-04"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(sqldf)
+library(lubridate)
+```
+
+
+```{r}
+library(readr)
+receipt_items <- read_csv("https://github.com/yihan990712/fetch/releases/download/data/receipt_items.csv")
+brands <- read_csv("https://github.com/yihan990712/fetch/releases/download/data/brands.csv")
+receipts <- read_csv("https://github.com/yihan990712/fetch/releases/download/data/receipts.csv")
+users <- read_csv("https://github.com/yihan990712/fetch/releases/download/data/users.csv")
+```
+
+
+
+```{r}
+#Which brand saw the most dollars spent in the month of June?
+m <- months(as.Date(receipt_items$MODIFY_DATE)) #express date as month
+newitem <- cbind(m, receipt_items)
+
+sqldf("
+      SELECT BARCODE
+      FROM brands
+      ORDER BY BARCODE
+      "
+) #Find the range of BARCODE
+
+total <- sqldf("
+      SELECT sum(TOTAL_FINAL_PRICE) as TOTAL_COST, BARCODE, MODIFY_DATE, m
+      FROM newitem
+      GROUP BY BARCODE
+      "
+)
+
+item<- sqldf("
+      SELECT TOTAL_COST, BARCODE
+      FROM total
+      WHERE BARCODE <'511111915355' AND BARCODE > '511111000679' AND m = 'June'
+      ORDER BY TOTAL_COST
+      ")
+item
+```
+
+From the result, it is clear that BARCODE "511111107521" saw the most spent in 
+the month of June. 
+
+```{r}
+sqldf("
+      SELECT NAME
+      FROM brands 
+      WHERE BARCODE = 511111107521
+      "
+)
+```
+
+The brand is Sara Lee Bread.
+
+
+
+
+```{r}
+#Which user spent the most money in the month of August?
+month <- months(as.Date(receipts$PURCHASE_DATE)) #express date as month
+newreceipts <- cbind(month, receipts)
+peruser2 <- sqldf("
+      SELECT TOTAL_SPENT, USER_ID, month, REWARDS_RECEIPT_STATUS
+      FROM newreceipts
+      WHERE REWARDS_RECEIPT_STATUS IS NOT 'REJECTED'
+      "
+)#exclude rejected items
+peruser <- sqldf("
+      SELECT sum(TOTAL_SPENT) as SPENT, USER_ID, month
+      FROM peruser2
+      GROUP BY USER_ID
+      "
+)
+userr<- sqldf("
+      SELECT SPENT, USER_ID
+      FROM peruser
+      WHERE month = 'August'
+      ORDER BY SPENT
+      ")
+userr
+```
+
+```{r}
+sqldf("
+      SELECT *
+      FROM users 
+      WHERE ID = '61757c3da9619d4881912d84'
+      "
+)
+```
+
+The information of user that spent most money in August is listed above.
+
+
+Step3
+```{r}
+receipts$d1 = as.Date(receipts$DATE_SCANNED)
+receipts$d2 = as.Date(receipts$PURCHASE_DATE)
+days <- sqldf("
+      SELECT julianday(d1) - julianday(d2) AS time_diff_days
+      FROM receipts
+")
+dif <- as.matrix(days)
+d <- dif[!is.na(dif)]
+summary(d)
+```
+
+The median difference of days that one user scanning the receipt after purchasing 
+is 1, and 75% of the users will scan it within 4 days, which shows the customer stickiness 
+of our company. 
